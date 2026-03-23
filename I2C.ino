@@ -15,14 +15,6 @@
 #define addr_w 0xD0
 #define addr_r 0xD1
 
-uint8_t hours   = 23;
-uint8_t minutes = 30;
-uint8_t seconds = 20;
-uint8_t day     = 5;
-uint8_t date    = 4;
-uint8_t month   = 2;
-uint16_t year   = 2040;
-
 void Setup(void)
 {
   DDR  = (1 << SCL) | (1 << SDA);
@@ -36,6 +28,16 @@ void Clk(void)
   _delay_us(5);
   PORT = Vynulovat(PORT, SCL); // L
   _delay_us(5);
+}
+
+uint8_t ToDEC(uint8_t value) // Convert value to DEC
+{
+  return ((value & 0xF0) >> 4) * 10 + (value & 0x0F);
+}
+
+uint8_t ToBCD(uint8_t value) // Convert value to BCD
+{
+  return (((value / 10 ) << 4) + (value % 10));
 }
 
 void StartBit(void) // First SDA LOW then SCL LOW
@@ -145,118 +147,55 @@ uint8_t ReadReg(uint8_t reg)
   WriteByte(addr_r);
   data = ReadByte(true);
   StopBit();
-  return ToDEC(data);
+  return data;
 }
 
-uint8_t ToDEC(uint8_t value) // Convert value to DEC
+void SetTime(uint8_t hour, uint8_t min, uint8_t sec, uint8_t day, uint8_t date, uint8_t month, uint16_t year)
 {
-  return ((value & 0xF0) >> 4) * 10 + (value & 0x0F);
-}
-
-uint8_t ToBCD(uint8_t value) // Convert value to BCD
-{
-  return (((value / 10 ) << 4) + (value % 10));
-}
-
-uint8_t SetTime(void)
-{
-  WriteReg(0x00, Seconds()); // Seconds
-  WriteReg(0x01, Minutes()); // Minutes
-  WriteReg(0x02, Hours()); // Hours
-  WriteReg(0x03, Day()); // Day
-  WriteReg(0x04, Date()); // Date
-  WriteReg(0x05, Month()); // Month
-  WriteReg(0x06, Year()); // Year
-}
-
-uint8_t ReadTime(void)
-{
-  printf("%d:", ReadReg(0x02)); // Hours
-  printf("%d:", ReadReg(0x01)); // Minutes
-  printf("%d ", ReadReg(0x00)); // Seconds
-  printf("%d ", ReadReg(0x03)); // Day
-  printf("%d.", ReadReg(0x04)); // Date
-  printf("%d.", ReadReg(0x05)); // Month
-  printf("%d" , ReadReg(0x06)); // Year
-  printf("\n\r");
-}
-
-uint8_t Seconds()
-{
-  return ToBCD(seconds);
-}
-
-uint8_t Minutes()
-{
-  return ToBCD(minutes);
-}
-
-uint8_t Hours()
-{
-  uint8_t hours_local = ToBCD(hours);
-  hours_local = Vynulovat(hours_local, 6);
-  return hours_local;
-}
-
-uint8_t Day()
-{
-  uint8_t day_local = 0;
-  if (day > 7)
-    day_local = 7;
-  else if (day < 1)
-    day_local = 1;
-  else
-  day_local = day;
-  return ToBCD(day_local);
-}
-
-uint8_t Date()
-{
-  uint8_t date_local = 0;
-  if (date > 31)
-    date_local = 31;
-  else if (date < 1)
-    date_local = 1;
-  else
-    date_local = date;
-  return ToBCD(date_local);
-}
-
-uint8_t Month()
-{
-  uint8_t month_local = 0;
-  if (month > 12)
-	  month_local = 12;
-  else if (month < 1)
-	  month_local = 1;
-  else
-	  month_local = month;
-  month_local = ToBCD(month_local);
-  
+  uint8_t month_bcd = ToBCD(month);
+  uint8_t year_short = year % 2000;
   if (year / 100 == 21)
-	  month_local = Nastavit(month_local, 7);
-  else 
-	  month_local = Vynulovat(month_local, 7);
-  return month_local;
+  	Nastavit(month_bcd, 7);
+  
+  WriteReg(0x00, ToBCD(sec)); // Seconds
+  WriteReg(0x01, ToBCD(min)); // Minutes
+  WriteReg(0x02, Vynulovat(ToBCD(hour), 6)); // Hours
+  WriteReg(0x03, ToBCD(day)); // Day
+  WriteReg(0x04, ToBCD(date)); // Date
+  WriteReg(0x05, month_bcd); // Month
+  WriteReg(0x06, ToBCD(year_short)); // Year
 }
 
-uint8_t Year()
+void ReadTime(void)
 {
-  uint8_t year_local = year;
-  return ToBCD(year_local);
+  uint8_t sec         = ToDEC(ReadReg(0x00));
+  uint8_t min         = ToDEC(ReadReg(0x01));
+  uint8_t hour        = ToDEC(ReadReg(0x02));
+  uint8_t day         = ToDEC(ReadReg(0x03));
+  uint8_t date        = ToDEC(ReadReg(0x04));
+  uint8_t month_bcd   = ReadReg(0x05);
+  uint8_t year_short  = ReadReg(0x06);
+
+  uint8_t month = ToDEC(month_bcd & 0x1F);
+  uint16_t year = 2000 + ToDEC(year_short);
+
+  if (JeNastaven(month_bcd, 7) == true)
+	year += 100;
+
+  printf("%02d:%02d:%02d %d %02d.%02d.%04d\r\n", hour, min, sec, day, date, month, year);  
 }
+
 
 int main(void)
 {
-  uint8_t data = 0;
   Setup();
 
-  // Zapsání hodnoty do registru sekund
-  SetTime();
+  // Set values in RTC registers
+  SetTime(8,0,0,2,17,3,2026);
 
   while(1)
   {
-  // Čtení a vypsání každou vteřinu
+  // Read values from RTC registers and wait
   ReadTime();
   _delay_ms(1000);
   }
