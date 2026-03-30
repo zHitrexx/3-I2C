@@ -15,6 +15,19 @@
 #define addr_w 0xD0
 #define addr_r 0xD1
 
+const char day_ch[7][3] = {{'P','o','\0'}, {'U','t','\0'}, {'S','t','\0'}, {'C','t','\0'}, {'P','a','\0'}, {'S','o','\0'}, {'N','e','\0'}};
+
+typedef struct 
+{
+  uint8_t hour;
+  uint8_t min;
+  uint8_t sec;
+  uint8_t day;
+  uint8_t date;
+  uint8_t month;
+  uint16_t year;
+} Time;
+
 void Setup(void)
 {
   DDR  = (1 << SCL) | (1 << SDA);
@@ -166,37 +179,39 @@ void SetTime(uint8_t hour, uint8_t min, uint8_t sec, uint8_t day, uint8_t date, 
   WriteReg(0x06, ToBCD(year_short)); // Year
 }
 
-void ReadTime(void)
+Time ReadTime(void)
 {
-  uint8_t sec         = ToDEC(ReadReg(0x00));
-  uint8_t min         = ToDEC(ReadReg(0x01));
-  uint8_t hour        = ToDEC(ReadReg(0x02));
-  uint8_t day         = ToDEC(ReadReg(0x03));
-  uint8_t date        = ToDEC(ReadReg(0x04));
+  Time time;
+  time.sec  = ToDEC(ReadReg(0x00));
+  time.min  = ToDEC(ReadReg(0x01));
+  time.hour = ToDEC(ReadReg(0x02));
+  time.day  = ToDEC(ReadReg(0x03));
+  time.date = ToDEC(ReadReg(0x04));
   uint8_t month_bcd   = ReadReg(0x05);
   uint8_t year_short  = ReadReg(0x06);
 
-  uint8_t month = ToDEC(month_bcd & 0x1F);
-  uint16_t year = 2000 + ToDEC(year_short);
+
+  time.month = ToDEC(month_bcd & 0x1F);
+  time.year = 2000 + ToDEC(year_short);
 
   if (JeNastaven(month_bcd, 7) == true)
-	year += 100;
+	time.year += 100;
 
-  printf("%02d:%02d:%02d %d %02d.%02d.%04d\r\n", hour, min, sec, day, date, month, year);  
+  return time; 
 }
-
 
 int main(void)
 {
   Setup();
-
+  Time time;
   // Set values in RTC registers
   SetTime(8,0,0,2,17,3,2026);
 
   while(1)
   {
   // Read values from RTC registers and wait
-  ReadTime();
+  time = ReadTime();
+  printf("%02d:%02d:%02d | %s | %02d.%02d.%04d\r\n", time.hour, time.min, time.sec, day_ch[time.day - 1], time.date, time.month, time.year);
   _delay_ms(1000);
   }
   return 0;
