@@ -1,6 +1,8 @@
+//=====================================//
+// Made by Hitrex (github.com/zHitrex) //
+//=====================================//
 #define F_CPU 14745600UL
 #include <avr/io.h>
-// #include <avr/interrupt.h>
 #include <util/delay.h>
 #include <stdlib.h>
 #include <stdbool.h>
